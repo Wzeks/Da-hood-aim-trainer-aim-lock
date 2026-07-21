@@ -1,0 +1,132 @@
+-- Aimlock by wezks (Hold E) + White Highlight ESP
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+
+local AIMLOCK_ENABLED = true
+local TARGET_PART = "Head"
+local MAX_DISTANCE = 200
+local FOV = 100
+
+-- GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "WezksAimlock"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 240, 0, 140)
+Frame.Position = UDim2.new(0, 20, 0, 20)
+Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Frame.BorderSizePixel = 0
+Frame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = Frame
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 35)
+Title.BackgroundTransparency = 1
+Title.Text = "Aimlock by wezks"
+Title.TextColor3 = Color3.fromRGB(0, 255, 120)
+Title.TextSize = 18
+Title.Font = Enum.Font.SourceSansBold
+Title.Parent = Frame
+
+local Status = Instance.new("TextLabel")
+Status.Size = UDim2.new(1, 0, 0, 25)
+Status.Position = UDim2.new(0, 0, 0, 40)
+Status.BackgroundTransparency = 1
+Status.Text = "Hold E to Aimlock"
+Status.TextColor3 = Color3.fromRGB(0, 255, 120)
+Status.TextSize = 15
+Status.Parent = Frame
+
+-- FOV Circle
+local fovCircle = Drawing.new("Circle")
+fovCircle.Thickness = 2
+fovCircle.NumSides = 64
+fovCircle.Radius = FOV
+fovCircle.Color = Color3.fromRGB(0, 255, 120)
+fovCircle.Transparency = 0.65
+fovCircle.Filled = false
+fovCircle.Visible = true
+
+-- White Highlight ESP
+local highlights = {}
+
+local function createHighlight(player)
+    if player == LocalPlayer then return end
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "WezksESP"
+    highlight.FillTransparency = 1
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.OutlineTransparency = 0.3
+    highlight.Parent = player.Character or player.CharacterAdded:Wait()
+    highlights[player] = highlight
+end
+
+for _, p in ipairs(Players:GetPlayers()) do
+    createHighlight(p)
+end
+Players.PlayerAdded:Connect(createHighlight)
+
+-- Update Highlights
+RunService.RenderStepped:Connect(function()
+    fovCircle.Position = Vector2.new(Mouse.X, Mouse.Y)
+    
+    for player, hl in pairs(highlights) do
+        if player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            hl.Adornee = player.Character
+            hl.Enabled = true
+        else
+            if hl.Adornee then hl.Enabled = false end
+        end
+    end
+end)
+
+-- Aimlock (Hold E only)
+RunService.RenderStepped:Connect(function()
+    local holdingE = UserInputService:IsKeyDown(Enum.KeyCode.E)
+    
+    if holdingE and AIMLOCK_ENABLED then
+        local closest = nil
+        local dist = math.huge
+        local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local humanoid = player.Character:FindFirstChild("Humanoid")
+                if humanoid and humanoid.Health > 0 then
+                    local part = player.Character:FindFirstChild(TARGET_PART)
+                    if part then
+                        local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                        if onScreen then
+                            local distance = (part.Position - Camera.CFrame.Position).Magnitude
+                            if distance > MAX_DISTANCE then continue end
+                            
+                            local mouseDist = (mousePos - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                            if mouseDist < FOV and mouseDist < dist then
+                                dist = mouseDist
+                                closest = player
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        if closest and closest.Character and closest.Character:FindFirstChild(TARGET_PART) then
+            local part = closest.Character[TARGET_PART]
+            local targetCFrame = CFrame.new(Camera.CFrame.Position, part.Position)
+            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, 0.35)
+        end
+    end
+end)
+
+print("✅ Aimlock by wezks loaded! Hold E to aimlock")
